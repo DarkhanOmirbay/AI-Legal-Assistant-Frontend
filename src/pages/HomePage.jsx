@@ -72,7 +72,13 @@ const HomePage = () => {
             </div>
             <div className="lg:w-1/3">
               <div className="w-64 h-64 mx-auto bg-blue-500 rounded-full flex items-center justify-center">
-                <MessageSquare className="w-32 h-32 text-white" />
+               <div className="w-64 h-64 mx-auto rounded-full overflow-hidden shadow-2xl">
+                    <img 
+                      src="/legal.jpg" 
+                      alt="Legal Assistant" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
               </div>
             </div>
           </div>
