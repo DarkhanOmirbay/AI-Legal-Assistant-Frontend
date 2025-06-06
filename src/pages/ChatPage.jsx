@@ -12,7 +12,10 @@ import {
   Trash2,
   MoreVertical,
   X,
-  Check
+  Check,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -24,13 +27,22 @@ const ChatPage = () => {
   const [newMessage, setNewMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Загружаем состояние сайдбара из localStorage
+    const saved = localStorage.getItem('sidebarOpen')
+    return saved !== null ? JSON.parse(saved) : true
+  })
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
+
+  // Сохраняем состояние сайдбара в localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebarOpen', JSON.stringify(sidebarOpen))
+  }, [sidebarOpen])
 
   useEffect(() => {
     loadConversations()
@@ -48,6 +60,10 @@ const ChatPage = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const toggleSidebar = () => {
+    setSidebarOpen(prev => !prev)
   }
 
   const loadConversations = async () => {
@@ -77,6 +93,7 @@ const ChatPage = () => {
     }
   }
 
+  // ОБНОВЛЕНО: Мгновенное создание чата с автофокусом
   const createNewConversation = async () => {
     try {
       const response = await chatAPI.createConversation()
@@ -84,11 +101,18 @@ const ChatPage = () => {
       setConversations(prev => [newConv, ...prev])
       setActiveConversation(newConv)
       setMessages([])
+      
+      // Автоматически фокусируемся на поле ввода для лучшего UX
+      setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 100)
+      
     } catch (error) {
       toast.error('Failed to create new conversation')
     }
   }
 
+  // ОБНОВЛЕНО: Улучшенная логика отправки сообщений
   const sendMessage = async (e) => {
     e.preventDefault()
     if (!newMessage.trim() || sending) return
@@ -97,7 +121,7 @@ const ChatPage = () => {
     setNewMessage('')
     setSending(true)
 
-    // Add user message to UI immediately
+    // Добавляем сообщение пользователя сразу в UI
     const userMessage = {
       id: Date.now(),
       query: messageText,
@@ -107,7 +131,7 @@ const ChatPage = () => {
     }
     setMessages(prev => [...prev, userMessage])
 
-    // Add typing indicator
+    // Добавляем индикатор печатания
     const typingMessage = {
       id: Date.now() + 1,
       query: '',
@@ -123,10 +147,10 @@ const ChatPage = () => {
         conversation_id: activeConversation?.id
       })
 
-      // Remove typing indicator and user temp message
+      // Удаляем временные сообщения
       setMessages(prev => prev.filter(msg => !msg.isTyping && msg.id !== userMessage.id))
 
-      // Add actual messages
+      // Добавляем настоящие сообщения
       const actualUserMessage = {
         id: response.data.message_id + '_user',
         query: messageText,
@@ -145,24 +169,21 @@ const ChatPage = () => {
 
       setMessages(prev => [...prev, actualUserMessage, botMessage])
 
-      // Update conversation if it was created or renamed
-      if (response.data.conversation_id && response.data.conversation_name) {
-        if (!activeConversation || activeConversation.name === 'New Chat') {
-          setConversations(prev => 
-            prev.map(conv => 
-              conv.id === response.data.conversation_id 
-                ? { ...conv, name: response.data.conversation_name }
-                : conv
-            )
+      // Обновляем название беседы если нужно (автоматическое переименование)
+      if (response.data.conversation_name && response.data.conversation_name !== activeConversation?.name) {
+        const updatedConv = { ...activeConversation, name: response.data.conversation_name }
+        setActiveConversation(updatedConv)
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === response.data.conversation_id 
+              ? updatedConv
+              : conv
           )
-          if (activeConversation) {
-            setActiveConversation(prev => ({ ...prev, name: response.data.conversation_name }))
-          }
-        }
+        )
       }
 
-      // If no active conversation, set the new one
-      if (!activeConversation) {
+      // Если беседа была создана во время отправки сообщения (если не было активной беседы)
+      if (!activeConversation && response.data.conversation_id) {
         const newConv = {
           id: response.data.conversation_id,
           name: response.data.conversation_name || 'New Chat',
@@ -174,10 +195,10 @@ const ChatPage = () => {
       }
 
     } catch (error) {
-      // Remove typing indicator
+      // Удаляем индикатор печатания
       setMessages(prev => prev.filter(msg => !msg.isTyping))
       
-      // Add error message
+      // Добавляем сообщение об ошибке
       const errorMessage = {
         id: Date.now() + 2,
         query: '',
@@ -203,7 +224,8 @@ const ChatPage = () => {
 
   const selectConversation = (conversation) => {
     setActiveConversation(conversation)
-    if (window.innerWidth < 768) {
+    // На мобильных закрываем сайдбар после выбора чата
+    if (window.innerWidth < 1024) {
       setSidebarOpen(false)
     }
   }
@@ -320,17 +342,24 @@ const ChatPage = () => {
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-80' : 'w-0'} lg:w-80 bg-gray-800 text-white flex flex-col transition-all duration-300 overflow-hidden`}>
+      <div className={`
+        ${sidebarOpen ? 'w-80' : 'w-0'} 
+        bg-gray-800 text-white flex flex-col transition-all duration-300 overflow-hidden
+        ${!sidebarOpen ? 'border-r-0' : 'border-r border-gray-700'}
+      `}>
         {/* Sidebar Header */}
         <div className="p-4 border-b border-gray-700">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">AI Legal Assistant</h3>
-            <button
-              onClick={createNewConversation}
-              className="bg-blue-600 hover:bg-blue-700 p-2 rounded-lg transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
+            <h3 className="text-lg font-semibold whitespace-nowrap">AI Legal Assistant</h3>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={createNewConversation}
+                className="bg-blue-600 hover:bg-blue-700 p-2 rounded-lg transition-colors"
+                title="Create new chat"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -340,19 +369,27 @@ const ChatPage = () => {
             {conversations.map(conversation => (
               <ConversationItem key={conversation.id} conversation={conversation} />
             ))}
+            {conversations.length === 0 && (
+              <div className="text-center text-gray-400 mt-8">
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No conversations yet</p>
+                <p className="text-xs mt-1">Create your first chat</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-gray-700">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <User className="w-4 h-4 mr-2" />
-              <span className="text-sm">{user?.username}</span>
+            <div className="flex items-center min-w-0">
+              <User className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span className="text-sm truncate">{user?.username}</span>
             </div>
             <button
               onClick={logout}
-              className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+              className="text-gray-400 hover:text-white p-1 rounded transition-colors flex-shrink-0 ml-2"
+              title="Logout"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -361,32 +398,40 @@ const ChatPage = () => {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
+            <div className="flex items-center min-w-0">
+              {/* Кнопка для переключения сайдбара */}
               <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden mr-4 p-2 rounded-lg hover:bg-gray-100"
+                onClick={toggleSidebar}
+                className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
               >
-                <MessageSquare className="w-5 h-5" />
+                {sidebarOpen ? (
+                  <PanelLeftClose className="w-5 h-5 text-gray-600" />
+                ) : (
+                  <PanelLeftOpen className="w-5 h-5 text-gray-600" />
+                )}
               </button>
-              <h2 className="text-lg font-semibold text-gray-800">
+              <h2 className="text-lg font-semibold text-gray-800 truncate">
                 {activeConversation?.name || 'Select or start a new conversation'}
               </h2>
             </div>
             {activeConversation && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-shrink-0">
                 <button
                   onClick={() => startRename(activeConversation)}
                   className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100"
+                  title="Rename conversation"
                 >
                   <Edit2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => startDelete(activeConversation)}
                   className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100"
+                  title="Delete conversation"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -403,12 +448,22 @@ const ChatPage = () => {
                 <MessageSquare className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                 <h3 className="text-xl font-semibold text-gray-800 mb-2">Welcome to AI Legal Assistant</h3>
                 <p className="text-gray-600 mb-6">Ask any question about Kazakhstan legislation and legal matters.</p>
-                <button
-                  onClick={createNewConversation}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Start New Conversation
-                </button>
+                <div className="space-y-3">
+                  <button
+                    onClick={createNewConversation}
+                    className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors block w-full"
+                  >
+                    Start New Conversation
+                  </button>
+                  {!sidebarOpen && conversations.length > 0 && (
+                    <button
+                      onClick={() => setSidebarOpen(true)}
+                      className="text-blue-600 hover:text-blue-700 px-6 py-2 rounded-lg border border-blue-600 hover:bg-blue-50 transition-colors block w-full"
+                    >
+                      Show Previous Conversations
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ) : loading ? (
@@ -481,6 +536,7 @@ const ChatPage = () => {
                 type="submit"
                 disabled={!newMessage.trim() || sending}
                 className="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Send message"
               >
                 <Send className="w-5 h-5" />
               </button>
