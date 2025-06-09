@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://143.198.114.61:8000/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://143.198.114.61:8000/api',
   timeout: 30000,
   withCredentials: true, // Important for cookies
 })
