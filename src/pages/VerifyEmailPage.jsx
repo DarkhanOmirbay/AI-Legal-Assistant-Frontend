@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle, Clock } from 'lucide-react'
 const VerifyEmailPage = () => {
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
-  const [timeLeft, setTimeLeft] = useState(15 * 60) // 15 minutes
+  const [timeLeft, setTimeLeft] = useState(1 * 60) // 15 minutes
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { verifyEmail, resendVerification } = useAuth()
